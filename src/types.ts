@@ -14,6 +14,8 @@ export interface BankMovement {
 export interface ScrapeResult {
   /** Si el scraping fue exitoso */
   success: boolean;
+  /** Nombre del banco */
+  bank: string;
   /** Lista de movimientos encontrados */
   movements: BankMovement[];
   /** Saldo actual de la cuenta */
@@ -26,16 +28,32 @@ export interface ScrapeResult {
   debug?: string;
 }
 
-/** Opciones para el scraper */
-export interface ScraperOptions {
+/** Credenciales de autenticación */
+export interface BankCredentials {
   /** RUT del titular (con o sin formato, ej: "12345678-9" o "123456789") */
   rut: string;
   /** Clave de internet del banco */
   password: string;
+}
+
+/** Opciones para el scraper */
+export interface ScraperOptions extends BankCredentials {
   /** Ruta al ejecutable de Chrome/Chromium. Si no se provee, busca automáticamente. */
   chromePath?: string;
   /** Si es true, guarda screenshots en ./screenshots/ para debugging */
   saveScreenshots?: boolean;
   /** Si es true, usa headless: false (para debugging visual) */
   headful?: boolean;
+}
+
+/** Interfaz que debe implementar cada banco */
+export interface BankScraper {
+  /** Identificador único del banco (ej: "falabella", "santander") */
+  id: string;
+  /** Nombre completo del banco */
+  name: string;
+  /** URL del portal web del banco */
+  url: string;
+  /** Ejecutar el scraping */
+  scrape(options: ScraperOptions): Promise<ScrapeResult>;
 }

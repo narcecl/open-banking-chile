@@ -1,62 +1,102 @@
 #!/usr/bin/env node
 
-import { scrapeFalabella } from "./scraper";
+import { banks, listBanks, getBank } from "./index";
 
 async function main() {
   const args = process.argv.slice(2);
-  const flags = new Set(args);
+  const flags = new Set(args.filter((a) => a.startsWith("--") || a.startsWith("-")));
 
   if (flags.has("--help") || flags.has("-h")) {
+    const bankList = listBanks()
+      .map((b) => `  ${b.id.padEnd(15)} ${b.name}`)
+      .join("\n");
+
     console.log(`
-banco-falabella-scraper — Obtén tus movimientos bancarios como JSON
+open-banking-chile — Obtén tus movimientos bancarios como JSON
 
 Uso:
-  banco-falabella [opciones]
+  open-banking-chile --bank <banco> [opciones]
+
+Bancos disponibles:
+${bankList}
 
 Opciones:
+  --bank <id>      Banco a consultar (requerido)
+  --list           Listar bancos disponibles
   --screenshots    Guardar screenshots en ./screenshots/
   --headful        Abrir Chrome visible (para debugging)
   --pretty         Formatear JSON con indentación
   --movements      Solo imprimir movimientos (sin metadata)
   --help, -h       Mostrar esta ayuda
 
-Variables de entorno requeridas:
-  FALABELLA_RUT    Tu RUT (ej: 123456789 o 12.345.678-9)
-  FALABELLA_PASS   Tu clave de internet
-
-Opcional:
-  CHROME_PATH      Ruta al ejecutable de Chrome/Chromium
+Variables de entorno:
+  <BANCO>_RUT      Tu RUT (ej: FALABELLA_RUT=12345678-9)
+  <BANCO>_PASS     Tu clave de internet (ej: FALABELLA_PASS=miclave)
+  CHROME_PATH      Ruta al ejecutable de Chrome/Chromium (opcional)
 
 Ejemplos:
-  # Básico
-  FALABELLA_RUT=123456789 FALABELLA_PASS=miclave banco-falabella
+  # Banco Falabella
+  FALABELLA_RUT=12345678-9 FALABELLA_PASS=miclave open-banking-chile --bank falabella --pretty
 
-  # Con archivo .env
-  cp .env.example .env  # editar con tus datos
-  source .env && banco-falabella --pretty
+  # Listar bancos disponibles
+  open-banking-chile --list
 
   # Solo movimientos, pipe a jq
-  banco-falabella --movements | jq '.[].description'
-
-  # Con screenshots para debugging
-  banco-falabella --screenshots --pretty
+  open-banking-chile --bank falabella --movements | jq '.[].description'
 `);
     process.exit(0);
   }
 
-  const rut = process.env.FALABELLA_RUT;
-  const password = process.env.FALABELLA_PASS;
+  if (flags.has("--list")) {
+    console.log("\nBancos disponibles:\n");
+    for (const b of listBanks()) {
+      console.log(`  ${b.id.padEnd(15)} ${b.name.padEnd(25)} ${b.url}`);
+    }
+    console.log(`\nTotal: ${listBanks().length} banco(s)`);
+    console.log("¿Tu banco no está? ¡Contribuye! Ver CONTRIBUTING.md\n");
+    process.exit(0);
+  }
 
-  if (!rut || !password) {
+  // Parse --bank flag
+  const bankIdx = args.indexOf("--bank");
+  const bankId = bankIdx >= 0 ? args[bankIdx + 1] : undefined;
+
+  if (!bankId) {
+    const available = Object.keys(banks).join(", ");
     console.error(
-      "Error: Se requieren las variables FALABELLA_RUT y FALABELLA_PASS\n" +
-        "  Ejemplo: FALABELLA_RUT=123456789 FALABELLA_PASS=miclave banco-falabella\n" +
-        "  O copia .env.example a .env y rellena tus datos."
+      `Error: Debes especificar un banco con --bank <id>\n` +
+      `Bancos disponibles: ${available}\n` +
+      `Usa --list para más detalles o --help para ayuda.`
     );
     process.exit(1);
   }
 
-  const result = await scrapeFalabella({
+  const bank = getBank(bankId);
+  if (!bank) {
+    const available = Object.keys(banks).join(", ");
+    console.error(
+      `Error: Banco "${bankId}" no encontrado.\n` +
+      `Bancos disponibles: ${available}\n` +
+      `Usa --list para más detalles.`
+    );
+    process.exit(1);
+  }
+
+  // Get credentials from env
+  const prefix = bankId.toUpperCase();
+  const rut = process.env[`${prefix}_RUT`];
+  const password = process.env[`${prefix}_PASS`];
+
+  if (!rut || !password) {
+    console.error(
+      `Error: Se requieren las variables ${prefix}_RUT y ${prefix}_PASS\n` +
+      `Ejemplo: ${prefix}_RUT=12345678-9 ${prefix}_PASS=miclave open-banking-chile --bank ${bankId}\n` +
+      `O copia .env.example a .env y rellena tus datos.`
+    );
+    process.exit(1);
+  }
+
+  const result = await bank.scrape({
     rut,
     password,
     chromePath: process.env.CHROME_PATH,
@@ -78,7 +118,6 @@ Ejemplos:
   if (flags.has("--movements")) {
     console.log(JSON.stringify(result.movements, null, indent));
   } else {
-    // Remove screenshot from CLI output (too noisy)
     const { screenshot: _, ...output } = result;
     console.log(JSON.stringify(output, null, indent));
   }

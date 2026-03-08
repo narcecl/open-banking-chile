@@ -1,36 +1,25 @@
-# banco-falabella-scraper
+# Open Banking Chile
 
 ## Context for Gemini
-This is a Node.js/TypeScript project that scrapes Banco Falabella (a Chilean bank) to extract bank movements and balance. It uses Puppeteer to automate a headless Chrome browser.
+Multi-bank scraping framework for Chilean banks. Uses Puppeteer + headless Chrome to extract bank movements and balances. Plugin architecture: each bank is a separate module implementing `BankScraper` interface.
 
-## Quick start instructions for users
+## Quick start
 1. Install Node.js 18+ and Google Chrome
-2. Clone the repo and run `npm install && npm run build`
-3. Set environment variables: `FALABELLA_RUT` and `FALABELLA_PASS`
-4. Run: `source .env && node dist/cli.js --pretty`
+2. `npm install && npm run build`
+3. Set env vars: `FALABELLA_RUT`, `FALABELLA_PASS`
+4. Run: `node dist/cli.js --bank falabella --pretty`
 
 ## Key files
-- `src/scraper.ts` — Main scraper (login flow, navigation, data extraction)
-- `src/types.ts` — TypeScript interfaces
-- `src/cli.ts` — CLI tool
-- `src/index.ts` — Library entry point
+- `src/banks/falabella.ts` — Banco Falabella scraper
+- `src/types.ts` — TypeScript interfaces (BankScraper, BankMovement, ScrapeResult)
+- `src/utils.ts` — Shared utilities (formatRut, findChrome, closePopups)
+- `src/index.ts` — Bank registry (getBank, listBanks)
+- `src/cli.ts` — CLI (--bank, --list, --movements, --screenshots)
 
-## How the scraper works
-1. Opens Chrome headless → navigates to bancofalabella.cl
-2. Clicks "Mi cuenta" → fills RUT and password → submits login
-3. Closes post-login popups
-4. Navigates to "Cartola" (account statement) section
-5. Extracts movements from HTML tables (Fecha, Descripción, Cargo, Abono, Saldo)
-6. Returns structured JSON
+## Adding a new bank
+Create `src/banks/<id>.ts` exporting a `BankScraper` object, register in `src/index.ts`. See CONTRIBUTING.md.
 
-## Common user needs
-- **Setup help**: They need Chrome installed + env vars configured
-- **Debugging**: Use `--screenshots` flag or `--headful` for visual debugging
-- **Integration**: The `scrapeFalabella()` function returns a promise with movements array
-- **Automation**: Can be set up as a cron job or systemd timer
-- **2FA issues**: The scraper cannot handle 2FA/dynamic keys — this is a bank-side limitation
-
-## Important security notes
-- Credentials never leave the user's machine
-- Always use environment variables, never hardcode credentials
-- The base64 screenshot in results may contain sensitive info
+## Security
+- All local, no external servers
+- Credentials via env vars only
+- Screenshots may contain sensitive data
