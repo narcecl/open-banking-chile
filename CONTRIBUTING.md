@@ -155,6 +155,66 @@ En `src/utils.ts` hay funciones compartidas que puedes usar:
 
 **¿Tienes cuenta en alguno?** ¡Anímate a contribuir!
 
+## Estándares de calidad
+
+### Estados en el README
+
+| Estado | Criterio |
+|--------|----------|
+| ✅ Funcional | Retorna `movements[]` con transacciones + saldo. Multi-cuenta si aplica. |
+| 🟡 Solo saldo | Login implementado, retorna saldo pero `movements: []` siempre. |
+| 🔜 Próximamente | No implementado aún. |
+
+Un scraper mergeado como `🟡 Solo saldo` **no se marca `✅ Funcional`** hasta que implemente movimientos.
+
+### Multi-cuenta: retorna todas, no elijas por el usuario
+
+Si el banco tiene varias cuentas (corriente, vista, ahorro, crédito), el scraper debe retornar movimientos de **todas**. Prefija la descripción para identificar el origen:
+
+```ts
+// ✅ Correcto
+{ description: "[Cuenta Corriente 1234] SUPERMERCADO XXX", amount: -50000, balance: 1500000 }
+{ description: "[Cuenta Vista 5678] TRANSFERENCIA RECIBIDA", amount: 100000, balance: 200000 }
+
+// ❌ Incorrecto
+{ description: "SUPERMERCADO XXX", amount: -50000, balance: 1500000 }  // ¿de cuál cuenta?
+```
+
+Ver `src/banks/santander.ts` como referencia (maneja cuentas múltiples y tarjetas de crédito).
+
+### Formato de fecha: siempre dd-mm-yyyy
+
+```ts
+"13-03-2026"  // ✅
+"2026-03-13"  // ❌
+"13/3/26"     // ❌
+```
+
+### Montos: negativos para cargos, positivos para abonos
+
+```ts
+amount: -50000   // cargo / débito ✅
+amount: 100000   // abono / crédito ✅
+```
+
+### Selectores con fallback
+
+Los bancos cambian su HTML. Usa arrays de selectores con fallback para robustez:
+
+```ts
+const RUT_SELECTORS = [
+  "#id-especifico",
+  'input[placeholder*="RUT"]',
+  'input[name*="rut"]',
+];
+for (const sel of RUT_SELECTORS) {
+  try {
+    await page.waitForSelector(sel, { visible: true, timeout: 2000 });
+    selector = sel; break;
+  } catch { continue; }
+}
+```
+
 ## Proceso de review
 
 1. Fork el repo
